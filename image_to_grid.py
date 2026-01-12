@@ -13,14 +13,17 @@ def image_to_grid(image_path, grid_size):
     if img is None:
         raise ValueError("Image not found")
     
-    img = cv2.resize(img, (grid_size[1], grid_size[0]))
+    grid_height, grid_width = grid_size
+    
+    img = cv2.resize(img, (grid_width, grid_height))
+    _, img_bw = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
 
     local_grid = []
 
-    for row in img:
+    for row in img_bw:
         grid_row = []
         for pixel in row: 
-            if pixel < 100:
+            if pixel == 0:
                 grid_row.append(OCCUPIED)
             else:
                 grid_row.append(FREE)
