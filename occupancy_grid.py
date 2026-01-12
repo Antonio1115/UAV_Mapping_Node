@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import math
 
 class OccupancyGridMap:
@@ -110,9 +111,10 @@ class OccupancyGridMap:
         half_w = grid_width // 2
 
         for i in range(grid_height):
+            flipped_i = grid_height - 1 - i  # flip image rows because OpenCV origin is top-left
             for j in range(grid_width):
 
-                value = local_grid[i][j]
+                value = local_grid[flipped_i][j]
 
                 if value == self.UNKNOWN:
                     continue
@@ -126,12 +128,19 @@ class OccupancyGridMap:
 
 
     def visualize_grid(self):
-        plt.imshow(self.grid, origin = "lower")
+        cmap = mcolors.ListedColormap(['gray', 'white', 'black'])
+        bounds = [-1.5, -0.5, 0.5, 1.5]
+        norm = mcolors.BoundaryNorm(bounds, cmap.N)
+
+        plt.imshow(self.grid, origin='lower', cmap=cmap, norm=norm)
         plt.title("Occupancy Grid")
         plt.xlabel("X (columns)")
         plt.ylabel("Y (rows)")
-        plt.colorbar(label = "-1 = UNKNOWN, 0 = FREE, 1 = OCCUPIED")
+        
+        cbar = plt.colorbar(ticks=[-1, 0, 1])
+        cbar.ax.set_yticklabels(['UNKNOWN', 'FREE', 'OCCUPIED'])
+        
         plt.savefig("occupancy_grid.png")
         plt.close()
 
-        
+            

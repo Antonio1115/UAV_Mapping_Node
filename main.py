@@ -1,4 +1,5 @@
 from occupancy_grid import OccupancyGridMap
+from image_to_grid import image_to_grid
 
 def main():
 
@@ -9,22 +10,14 @@ def main():
         inflation_meters = .5
     )
 
-    local_grid = [
-    [-1, -1,  1,  1,  1, -1, -1],
-    [-1,  0,  0,  0,  0,  0, -1],
-    [ 1,  0,  0,  0,  0,  0,  1],
-    [ 1,  0,  0,  0,  0,  0,  1],
-    [ 1,  0,  0,  0,  0,  0,  1],
-    [-1,  0,  0,  0,  0,  0, -1],
-    [-1, -1,  1,  1,  1, -1, -1],
-    ]
+    local_grid = image_to_grid("images/black_and_white_maze.png", (100,100))
 
     grid.update_from_local_grid(
     local_grid=local_grid,
     drone_x=0.0,
     drone_y=0.0
     )
-    
+
 
     grid.visualize_grid()
 
