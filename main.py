@@ -10,7 +10,7 @@ def main():
         inflation_meters = .5
     )
 
-    local_grid = image_to_grid("images/black_and_white_maze.png", (100,100))
+    local_grid = image_to_grid("images/field.png", (60,60))
 
     grid.update_from_local_grid(
     local_grid=local_grid,
