@@ -32,31 +32,6 @@ class OccupancyGridMap:
         col = int((x + self.width_meters / 2) / self.resolution)
 
         return row, col
-
-    def inflate_obstacle(self, center_row, center_col):
-        """
-        Inflates the obstacles in a grid by taking the center position
-        and marking surrounding cells as OCCUPIED as well
-        """
-
-        for dy in range(-self.inflation_radius_cells, self.inflation_radius_cells + 1):
-            for dx in range(-self.inflation_radius_cells, self.inflation_radius_cells + 1):
-                row = center_row + dy
-                col = center_col + dx
-
-                if 0 <= row < self.grid_height and 0 <= col < self.grid_width:
-                    self.grid[row][col] = self.OCCUPIED
-
-    def add_obstacle(self, x, y):
-        """
-        Takes real world coordinates and adds them as obstacles in a grid
-        """
-
-        row, col = self.world_to_grid(x,y)
-
-        if 0 <= row < self.grid_height and 0 <= col < self.grid_width:
-            self.inflate_obstacle(row, col)
-
     
     # This function is currently not being used, but will be kept in case I need it in the future
     def is_line_of_sight_clear(self, start_row, start_col, end_row, end_col):
