@@ -7,25 +7,32 @@ def generate_field(
     height_px=600,
     output_path="images/field.png"
 ):
-    # 1. Empty field (white)
-    img = np.ones((height_px, width_px), dtype=np.uint8) * 255
+    img = np.ones((height_px, width_px), dtype=np.uint8) * 220
 
-    # Random boxes
     for _ in range(5):
-        x = random.randint(50, 500)
-        y = random.randint(50, 500)
-        w = random.randint(30, 80)
-        h = random.randint(30, 80)
-        cv2.rectangle(img, (x, y), (x + w, y + h), 0, -1)
+        x = random.randint(40, width_px - 120)
+        y = random.randint(40, height_px - 120)
+        w = random.randint(40, 100)
+        h = random.randint(40, 100)
+        color = random.randint(0, 50)  # not pure black
+        cv2.rectangle(img, (x, y), (x + w, y + h), color, -1)
 
-    # Random cones
     for _ in range(5):
-        x = random.randint(50, 550)
-        y = random.randint(50, 550)
-        r = random.randint(10, 25)
-        cv2.circle(img, (x, y), r, 0, -1)
+        x = random.randint(50, width_px - 50)
+        y = random.randint(50, height_px - 50)
+        r = random.randint(12, 30)
+        color = random.randint(0, 50)
+        cv2.circle(img, (x, y), r, color, -1)
 
-    # 4. Save image
+    gradient = np.linspace(0.85, 1.05, width_px)
+    gradient = np.tile(gradient, (height_px, 1))
+    img = np.clip(img * gradient, 0, 255).astype(np.uint8)
+
+    noise = np.random.normal(0, 10, (height_px, width_px))
+    img = np.clip(img + noise, 0, 255).astype(np.uint8)
+
+    img = cv2.GaussianBlur(img, (5, 5), 0)
+
     cv2.imwrite(output_path, img)
     print(f"Saved synthetic field to {output_path}")
 
