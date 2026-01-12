@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import math
 
 class OccupancyGridMap:
 
@@ -55,6 +56,8 @@ class OccupancyGridMap:
         if 0 <= row < self.grid_height and 0 <= col < self.grid_width:
             self.inflate_obstacle(row, col)
 
+    
+    # This function is currently not being used, but will be kept in case I need it in the future
     def is_line_of_sight_clear(self, start_row, start_col, end_row, end_col):
         """
         Takes starting a starting grid cell and an end grid cell to determine
@@ -91,28 +94,36 @@ class OccupancyGridMap:
         
         return True
 
-
-    def mark_visible_area(self, drone_x, drone_y, drone_view_radius):
+    
+    def update_from_local_grid(self, local_grid, drone_x, drone_y):
         """
-        Marks visble area on the grid based of the drones inputs
+        Takes the local map created from the drones image and uses it to update
+        the global grid map
         """
 
         center_row, center_col = self.world_to_grid(drone_x, drone_y)
-        view_radius = int(drone_view_radius / self.resolution)
 
+        grid_height = len(local_grid)
+        grid_width = len(local_grid[0])
 
-        for dy in range(-view_radius, view_radius + 1):
-            for dx in range(-view_radius, view_radius + 1):
-                row = center_row + dy
-                col = center_col + dx
+        half_h = grid_height // 2
+        half_w = grid_width // 2
 
-                if 0 <= row < self.grid_height and 0 <= col < self.grid_width:
-                    distance = (dy**2 + dx**2)**.5
+        for i in range(grid_height):
+            for j in range(grid_width):
 
-                    if distance <= view_radius:
-                        if self.is_line_of_sight_clear(center_row, center_col, row, col):
-                            if self.grid[row][col] != self.OCCUPIED:
-                                self.grid[row][col] = self.FREE
+                value = local_grid[i][j]
+
+                if value == self.UNKNOWN:
+                    continue
+
+                global_row = center_row + (i - half_h)
+                global_col = center_col + (j - half_w)
+
+                if 0 <= global_row < self.grid_height and 0 <= global_col < self.grid_width:
+                    if self.grid[global_row][global_col] != self.OCCUPIED:
+                        self.grid[global_row][global_col] = value
+
 
     def visualize_grid(self):
         plt.imshow(self.grid, origin = "lower")

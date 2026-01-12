@@ -9,15 +9,22 @@ def main():
         inflation_meters = .5
     )
 
-    grid.add_obstacle(2.0, 1.0)
-    grid.add_obstacle(-1.5, 3.0)
-    grid.add_obstacle(0.0, -2.0)
+    local_grid = [
+    [-1, -1,  1,  1,  1, -1, -1],
+    [-1,  0,  0,  0,  0,  0, -1],
+    [ 1,  0,  0,  0,  0,  0,  1],
+    [ 1,  0,  0,  0,  0,  0,  1],
+    [ 1,  0,  0,  0,  0,  0,  1],
+    [-1,  0,  0,  0,  0,  0, -1],
+    [-1, -1,  1,  1,  1, -1, -1],
+    ]
 
-    grid.mark_visible_area(
-        drone_x = 0.0,
-        drone_y = 0.0,
-        drone_view_radius= 10
+    grid.update_from_local_grid(
+    local_grid=local_grid,
+    drone_x=0.0,
+    drone_y=0.0
     )
+    
 
     grid.visualize_grid()
 
