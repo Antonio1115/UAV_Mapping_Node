@@ -32,9 +32,12 @@ def image_to_grid(image_path, grid_size):
     # Invert to get non-green (obstacles)
     binary = cv2.bitwise_not(green_mask)
     
-    # Light morphology to remove noise
-    kernel_small = np.ones((2, 2), np.uint8)
-    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_small, iterations=1)
+    # Fill small holes inside obstacles, then remove noise
+    kernel_close = np.ones((3, 3), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_close, iterations=1)
+    
+    kernel_open = np.ones((2, 2), np.uint8)
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_open, iterations=1)
 
     local_grid = []
 
