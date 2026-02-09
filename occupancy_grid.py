@@ -9,14 +9,19 @@ class OccupancyGridMap:
     OCCUPIED = 1
 
     def __init__(self, width_meters, height_meters, resolution, inflation_meters):
+        if resolution <= 0:
+            raise ValueError("resolution must be > 0")
+        if width_meters <= 0 or height_meters <= 0:
+            raise ValueError("width_meters and height_meters must be > 0")
+
         self.width_meters = width_meters
         self.height_meters = height_meters
-        self.inflation_meters = inflation_meters
+        self.inflation_meters = max(0.0, inflation_meters)
         self.resolution = resolution
 
-        self.grid_width = int(self.width_meters / self.resolution)
-        self.grid_height = int(self.height_meters / self.resolution)
-        self.inflation_radius_cells = int(self.inflation_meters / self.resolution)
+        self.grid_width = math.ceil(self.width_meters / self.resolution)
+        self.grid_height = math.ceil(self.height_meters / self.resolution)
+        self.inflation_radius_cells = max(0, int(self.inflation_meters / self.resolution))
 
         self.grid = [
             [self.UNKNOWN for col in range(self.grid_width)]
@@ -28,10 +33,26 @@ class OccupancyGridMap:
         Converts world coordinates into grid coordinates
         """
 
-        row = int((y + self.height_meters / 2) / self.resolution)
-        col = int((x + self.width_meters / 2) / self.resolution)
+        row = math.floor((y + self.height_meters / 2) / self.resolution)
+        col = math.floor((x + self.width_meters / 2) / self.resolution)
 
         return row, col
+
+    def _inflate_occupied(self, center_row, center_col):
+        if self.inflation_radius_cells <= 0:
+            return
+
+        radius = self.inflation_radius_cells
+        for r in range(center_row - radius, center_row + radius + 1):
+            if r < 0 or r >= self.grid_height:
+                continue
+            for c in range(center_col - radius, center_col + radius + 1):
+                if c < 0 or c >= self.grid_width:
+                    continue
+                dr = r - center_row
+                dc = c - center_col
+                if dr * dr + dc * dc <= radius * radius:
+                    self.grid[r][c] = self.OCCUPIED
     
     # This function is currently not being used, but will be kept in case I need it in the future
     def is_line_of_sight_clear(self, start_row, start_col, end_row, end_col):
@@ -79,6 +100,9 @@ class OccupancyGridMap:
 
         center_row, center_col = self.world_to_grid(drone_x, drone_y)
 
+        if not local_grid or not local_grid[0]:
+            return
+
         grid_height = len(local_grid)
         grid_width = len(local_grid[0])
 
@@ -98,7 +122,10 @@ class OccupancyGridMap:
                 global_col = center_col + (j - half_w)
 
                 if 0 <= global_row < self.grid_height and 0 <= global_col < self.grid_width:
-                    if self.grid[global_row][global_col] != self.OCCUPIED:
+                    if value == self.OCCUPIED:
+                        self.grid[global_row][global_col] = self.OCCUPIED
+                        self._inflate_occupied(global_row, global_col)
+                    elif self.grid[global_row][global_col] != self.OCCUPIED:
                         self.grid[global_row][global_col] = value
 
 

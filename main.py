@@ -7,7 +7,7 @@ def main():
         width_meters = 20,
         height_meters = 20,
         resolution = .2,
-        inflation_meters = .5
+        inflation_meters = .3
     )
 
     local_grid = image_to_grid("images/field.png", (100,100))
