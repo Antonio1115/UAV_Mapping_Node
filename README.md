@@ -1,6 +1,6 @@
 # UAV Occupancy Grid Mapping
 
-This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to build a 2D occupancy grid for obstacle detection and path planning. It supports both image-based pipelines (camera to local grid) and direct world-frame obstacle inputs.
+This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to build a 2D occupancy grid for obstacle detection and path planning. The primary input is world-frame obstacle data, with an optional image-based pipeline for testing.
 
 This project is being built with robotics competitions and real-world deployment in mind, so the focus is on clean architecture and realistic sensor processing.
 
@@ -9,11 +9,11 @@ This project is being built with robotics competitions and real-world deployment
 **Occupancy Grid Mapping**  
 Maintains a global 2D grid with three states: UNKNOWN, FREE, and OCCUPIED
 
-**HSV-Based Image Processing**  
-Uses OpenCV HSV color space to detect non-green obstacles on grass fields
-
 **Flexible Obstacle Inputs**  
 Accepts obstacle inputs as points, polygons, or bounding boxes in world coordinates
+
+**Optional Image Processing**  
+HSV-based image pipeline for synthetic tests and legacy image inputs
 
 **World Coordinate Mapping**  
 Converts between real-world coordinates (meters) and grid indices
@@ -46,7 +46,7 @@ uav-mapping/
 
 ## Usage
 
-### Basic Example
+### Basic Example (Obstacle Inputs)
 
 ```python
 from occupancy_grid import OccupancyGridMap
@@ -60,7 +60,6 @@ grid = OccupancyGridMap(
     inflation_meters=0.5
 )
 
-# Option A: Direct obstacle inputs in world coordinates
 obstacles = [
     {"x": -1.5, "y": 2.0, "radius_m": 0.4},
     {"bbox": [-3.0, -1.0, -2.0, 0.5], "radius_m": 0.2},
@@ -68,13 +67,31 @@ obstacles = [
 ]
 grid.update_from_obstacles(obstacles)
 
-# Option B: Image-based pipeline (useful for testing)
+# Visualize and save the result
+grid.visualize_grid()  # Saves to occupancy_grid.png
+
+### Image-Based Pipeline (Optional)
+
+```python
+from occupancy_grid import OccupancyGridMap
+from image_to_grid import image_to_grid
+
+grid = OccupancyGridMap(
+    width_meters=20,
+    height_meters=20,
+    resolution=0.1,
+    inflation_meters=0.5
+)
+
 local_grid = image_to_grid("images/field.png", (200, 200))
 grid.update_from_local_grid(
     local_grid=local_grid,
     drone_x=0.0,
     drone_y=0.0
 )
+
+grid.visualize_grid()  # Saves to occupancy_grid.png
+```
 
 # Visualize and save the result
 grid.visualize_grid()  # Saves to occupancy_grid.png
@@ -96,7 +113,12 @@ generate_field(
 
 ## How It Works
 
-### 1. Image Processing Pipeline
+### 1. Obstacle Inputs (World Frame)
+
+When obstacles already come in world coordinates, the local image grid is optional.
+The mapping node can update the global grid directly via `update_from_obstacles()`.
+
+### 2. Image Processing Pipeline (Optional)
 
 The image processing uses HSV color space to detect obstacles on green grass:
 
@@ -109,11 +131,6 @@ The image processing uses HSV color space to detect obstacles on green grass:
 - Convert to grid values (FREE or OCCUPIED)
 
 This approach is robust because it works with obstacles of any color, not just specific shades.
-
-### 2. Detection Inputs (World Frame)
-
-When obstacles already come in world coordinates, the local image grid is optional.
-The mapping node can update the global grid directly via `update_from_obstacles()`.
 
 ### 3. Coordinate Transformation
 
