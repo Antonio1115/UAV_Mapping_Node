@@ -1,6 +1,6 @@
 # UAV Occupancy Grid Mapping
 
-This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to take a top-down camera image from a drone and convert it into a 2D occupancy grid that can be used for obstacle detection and path planning.
+This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to build a 2D occupancy grid for obstacle detection and path planning. It supports both image-based pipelines (camera to local grid) and direct world-frame obstacle inputs.
 
 This project is being built with robotics competitions and real-world deployment in mind, so the focus is on clean architecture and realistic sensor processing.
 
@@ -11,6 +11,9 @@ Maintains a global 2D grid with three states: UNKNOWN, FREE, and OCCUPIED
 
 **HSV-Based Image Processing**  
 Uses OpenCV HSV color space to detect non-green obstacles on grass fields
+
+**Flexible Obstacle Inputs**  
+Accepts obstacle inputs as points, polygons, or bounding boxes in world coordinates
 
 **World Coordinate Mapping**  
 Converts between real-world coordinates (meters) and grid indices
@@ -57,10 +60,16 @@ grid = OccupancyGridMap(
     inflation_meters=0.5
 )
 
-# Convert a drone image into a local occupancy grid
-local_grid = image_to_grid("images/field.png", (200, 200))
+# Option A: Direct obstacle inputs in world coordinates
+obstacles = [
+    {"x": -1.5, "y": 2.0, "radius_m": 0.4},
+    {"bbox": [-3.0, -1.0, -2.0, 0.5], "radius_m": 0.2},
+    {"points": [(1.0, 1.0), (1.2, 1.1), (1.4, 1.05)]}
+]
+grid.update_from_obstacles(obstacles)
 
-# Update the global map from the drone's position
+# Option B: Image-based pipeline (useful for testing)
+local_grid = image_to_grid("images/field.png", (200, 200))
 grid.update_from_local_grid(
     local_grid=local_grid,
     drone_x=0.0,
@@ -101,14 +110,19 @@ The image processing uses HSV color space to detect obstacles on green grass:
 
 This approach is robust because it works with obstacles of any color, not just specific shades.
 
-### 2. Coordinate Transformation
+### 2. Detection Inputs (World Frame)
+
+When obstacles already come in world coordinates, the local image grid is optional.
+The mapping node can update the global grid directly via `update_from_obstacles()`.
+
+### 3. Coordinate Transformation
 
 - Converts world coordinates (meters) to grid indices
 - Handles differences between image origins and grid coordinates
 - Keeps the global map consistent as observations update it
 - Flips image rows to align with standard coordinate frame
 
-### 3. Map Integration
+### 4. Map Integration
 
 - Local grids from the drone camera are projected into the global map
 - Unknown cells are updated as new observations are made
@@ -134,6 +148,7 @@ Key parameters can be adjusted in `main.py`:
 - `resolution` - Cell size (smaller = more detail, more computation)
 - `inflation_meters` - Safety margin around obstacles
 - HSV green range in `image_to_grid.py` - Adjust for different lighting conditions
+- `update_from_obstacles()` - Adapter for upstream obstacle formats
 
 ## License
 

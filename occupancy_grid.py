@@ -53,6 +53,25 @@ class OccupancyGridMap:
                 dc = c - center_col
                 if dr * dr + dc * dc <= radius * radius:
                     self.grid[r][c] = self.OCCUPIED
+
+    def _mark_occupied_with_radius(self, center_row, center_col, radius_cells):
+        if radius_cells <= 0:
+            if 0 <= center_row < self.grid_height and 0 <= center_col < self.grid_width:
+                self.grid[center_row][center_col] = self.OCCUPIED
+                self._inflate_occupied(center_row, center_col)
+            return
+
+        for r in range(center_row - radius_cells, center_row + radius_cells + 1):
+            if r < 0 or r >= self.grid_height:
+                continue
+            for c in range(center_col - radius_cells, center_col + radius_cells + 1):
+                if c < 0 or c >= self.grid_width:
+                    continue
+                dr = r - center_row
+                dc = c - center_col
+                if dr * dr + dc * dc <= radius_cells * radius_cells:
+                    self.grid[r][c] = self.OCCUPIED
+                    self._inflate_occupied(r, c)
     
     # This function is currently not being used, but will be kept in case I need it in the future
     def is_line_of_sight_clear(self, start_row, start_col, end_row, end_col):
@@ -98,6 +117,9 @@ class OccupancyGridMap:
         the global grid map
         """
 
+        # Optional path for image-space pipelines; world-frame inputs can update
+        # the global grid directly via update_from_obstacles().
+
         center_row, center_col = self.world_to_grid(drone_x, drone_y)
 
         if not local_grid or not local_grid[0]:
@@ -127,6 +149,75 @@ class OccupancyGridMap:
                         self._inflate_occupied(global_row, global_col)
                     elif self.grid[global_row][global_col] != self.OCCUPIED:
                         self.grid[global_row][global_col] = value
+
+    def add_obstacle_points(self, points, radius_m=0.0):
+        """
+        Marks obstacle points in world coordinates as occupied.
+        Optional radius_m expands each point into a filled circle.
+        """
+
+        if not points:
+            return
+
+        radius_cells = max(0, int(radius_m / self.resolution))
+
+        for x, y in points:
+            row, col = self.world_to_grid(x, y)
+            self._mark_occupied_with_radius(row, col, radius_cells)
+
+    def update_from_obstacles(self, obstacles, default_radius_m=0.0):
+        """
+        Flexible adapter for upstream obstacle outputs.
+        Supported obstacle fields (best-effort):
+        - points: list of (x, y)
+        - polygon: list of (x, y)
+        - bbox: dict or list [xmin, ymin, xmax, ymax]
+        - x, y: single point
+        """
+
+        if not obstacles:
+            return
+
+        for obstacle in obstacles:
+            points = []
+            radius_m = default_radius_m
+
+            if isinstance(obstacle, dict):
+                if "radius_m" in obstacle:
+                    radius_m = obstacle["radius_m"]
+
+                if "points" in obstacle:
+                    points = obstacle["points"]
+                elif "polygon" in obstacle:
+                    points = obstacle["polygon"]
+                elif "bbox" in obstacle:
+                    bbox = obstacle["bbox"]
+                    if isinstance(bbox, dict):
+                        xmin = bbox.get("xmin")
+                        ymin = bbox.get("ymin")
+                        xmax = bbox.get("xmax")
+                        ymax = bbox.get("ymax")
+                    else:
+                        if len(bbox) == 4:
+                            xmin, ymin, xmax, ymax = bbox
+                        else:
+                            xmin = ymin = xmax = ymax = None
+
+                    if xmin is not None:
+                        cx = (xmin + xmax) / 2
+                        cy = (ymin + ymax) / 2
+                        points = [
+                            (xmin, ymin),
+                            (xmax, ymin),
+                            (xmax, ymax),
+                            (xmin, ymax),
+                            (cx, cy)
+                        ]
+                elif "x" in obstacle and "y" in obstacle:
+                    points = [(obstacle["x"], obstacle["y"])]
+
+            if points:
+                self.add_obstacle_points(points, radius_m=radius_m)
 
 
     def visualize_grid(self):
