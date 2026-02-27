@@ -2,8 +2,6 @@
 
 This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to build a 2D occupancy grid for obstacle detection and path planning. The primary input is world-frame obstacle data, with an optional image-based pipeline for testing.
 
-This project is being built with robotics competitions and real-world deployment in mind, so the focus is on clean architecture and realistic sensor processing.
-
 ## Features
 
 **Occupancy Grid Mapping**  
@@ -12,7 +10,7 @@ Maintains a global 2D grid with three states: UNKNOWN, FREE, and OCCUPIED
 **Flexible Obstacle Inputs**  
 Accepts obstacle inputs as points, polygons, or bounding boxes in world coordinates
 
-**ArUco Marker Input (Single Square)**  
+**ArUco Marker Input**  
 Accepts one ArUco marker as a square detection with center, size, and optional yaw
 
 **Optional Image Processing**  
@@ -21,7 +19,7 @@ HSV-based image pipeline for synthetic tests and legacy image inputs
 **World Coordinate Mapping**  
 Converts between real-world coordinates (meters) and grid indices
 
-**Synthetic Field Generator**  
+**Test Field Generator**  
 Generates realistic test images with obstacles, grass texture, and varied colors for simulation
 
 **Visualization Tools**  
@@ -41,7 +39,7 @@ uav-mapping/
 ├── occupancy_grid.py      # Global occupancy grid implementation
 ├── image_to_grid.py       # Image processing pipeline (HSV detection)
 ├── utils/
-│   └── test_field.py      # Synthetic field generator
+│   └── test_field.py      # Test field generator
 ├── main.py                # Example usage / demo
 ├── images/                # Input images
 └── .gitignore
@@ -168,17 +166,8 @@ The mapping node can update the global grid directly via `update_from_obstacles(
 
 ### 2. Image Processing Pipeline (Optional)
 
-The image processing uses HSV color space to detect obstacles on green grass:
-
-- Resize image to match grid dimensions
-- Blur to reduce camera noise
-- Convert to HSV color space (separates color from brightness)
-- Detect green range to identify grass
-- Invert to find non-green obstacles (any color)
-- Apply light morphological operations to fill holes and remove noise
-- Convert to grid values (FREE or OCCUPIED)
-
-This approach is robust because it works with obstacles of any color, not just specific shades.
+This path is mainly for testing and demos.
+The mian approach is direct world-frame obstacle inputs via `update_from_obstacles()`.
 
 ### 3. Coordinate Transformation
 
