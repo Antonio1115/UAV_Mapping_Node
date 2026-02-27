@@ -7,6 +7,7 @@ class OccupancyGridMap:
     UNKNOWN = -1
     FREE = 0
     OCCUPIED = 1
+    MARKER = 2
 
     def __init__(self, width_meters, height_meters, resolution, inflation_meters):
         if resolution <= 0:
@@ -27,6 +28,11 @@ class OccupancyGridMap:
             [self.UNKNOWN for col in range(self.grid_width)]
             for row in range(self.grid_height)
             ]
+        self.marker_layer = [
+            [False for col in range(self.grid_width)]
+            for row in range(self.grid_height)
+        ]
+        self.aruco_marker = None
 
     def world_to_grid(self, x, y):
         """
@@ -72,6 +78,82 @@ class OccupancyGridMap:
                 if dr * dr + dc * dc <= radius_cells * radius_cells:
                     self.grid[r][c] = self.OCCUPIED
                     self._inflate_occupied(r, c)
+
+    def _cell_center_world(self, row, col):
+        x = (col + 0.5) * self.resolution - (self.width_meters / 2)
+        y = (row + 0.5) * self.resolution - (self.height_meters / 2)
+        return x, y
+
+    def _point_in_polygon(self, x, y, polygon):
+        inside = False
+        n = len(polygon)
+        j = n - 1
+
+        for i in range(n):
+            xi, yi = polygon[i]
+            xj, yj = polygon[j]
+
+            intersects = ((yi > y) != (yj > y)) and (
+                x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi
+            )
+            if intersects:
+                inside = not inside
+
+            j = i
+
+        return inside
+
+    def _mark_polygon_occupied(self, polygon):
+        if len(polygon) < 3:
+            return
+
+        min_x = min(point[0] for point in polygon)
+        max_x = max(point[0] for point in polygon)
+        min_y = min(point[1] for point in polygon)
+        max_y = max(point[1] for point in polygon)
+
+        min_row, min_col = self.world_to_grid(min_x, min_y)
+        max_row, max_col = self.world_to_grid(max_x, max_y)
+
+        row_start = max(0, min(min_row, max_row) - 1)
+        row_end = min(self.grid_height - 1, max(min_row, max_row) + 1)
+        col_start = max(0, min(min_col, max_col) - 1)
+        col_end = min(self.grid_width - 1, max(min_col, max_col) + 1)
+
+        for row in range(row_start, row_end + 1):
+            for col in range(col_start, col_end + 1):
+                x, y = self._cell_center_world(row, col)
+                if self._point_in_polygon(x, y, polygon):
+                    self.grid[row][col] = self.OCCUPIED
+                    self._inflate_occupied(row, col)
+
+    def _clear_marker_layer(self):
+        for row in range(self.grid_height):
+            for col in range(self.grid_width):
+                self.marker_layer[row][col] = False
+
+    def _mark_polygon_marker(self, polygon):
+        if len(polygon) < 3:
+            return
+
+        min_x = min(point[0] for point in polygon)
+        max_x = max(point[0] for point in polygon)
+        min_y = min(point[1] for point in polygon)
+        max_y = max(point[1] for point in polygon)
+
+        min_row, min_col = self.world_to_grid(min_x, min_y)
+        max_row, max_col = self.world_to_grid(max_x, max_y)
+
+        row_start = max(0, min(min_row, max_row) - 1)
+        row_end = min(self.grid_height - 1, max(min_row, max_row) + 1)
+        col_start = max(0, min(min_col, max_col) - 1)
+        col_end = min(self.grid_width - 1, max(min_col, max_col) + 1)
+
+        for row in range(row_start, row_end + 1):
+            for col in range(col_start, col_end + 1):
+                x, y = self._cell_center_world(row, col)
+                if self._point_in_polygon(x, y, polygon):
+                    self.marker_layer[row][col] = True
     
     # This function is currently not being used, but will be kept in case I need it in the future
     def is_line_of_sight_clear(self, start_row, start_col, end_row, end_col):
@@ -165,6 +247,31 @@ class OccupancyGridMap:
             row, col = self.world_to_grid(x, y)
             self._mark_occupied_with_radius(row, col, radius_cells)
 
+    def _mark_bbox_occupied(self, xmin, ymin, xmax, ymax, padding_m=0.0):
+        xmin, xmax = sorted((xmin, xmax))
+        ymin, ymax = sorted((ymin, ymax))
+
+        pad = max(0.0, padding_m)
+        xmin -= pad
+        xmax += pad
+        ymin -= pad
+        ymax += pad
+
+        min_row, min_col = self.world_to_grid(xmin, ymin)
+        max_row, max_col = self.world_to_grid(xmax, ymax)
+
+        row_start = max(0, min(min_row, max_row) - 1)
+        row_end = min(self.grid_height - 1, max(min_row, max_row) + 1)
+        col_start = max(0, min(min_col, max_col) - 1)
+        col_end = min(self.grid_width - 1, max(min_col, max_col) + 1)
+
+        for row in range(row_start, row_end + 1):
+            for col in range(col_start, col_end + 1):
+                x, y = self._cell_center_world(row, col)
+                if xmin <= x <= xmax and ymin <= y <= ymax:
+                    self.grid[row][col] = self.OCCUPIED
+                    self._inflate_occupied(row, col)
+
     def update_from_obstacles(self, obstacles, default_radius_m=0.0):
         """
         Flexible adapter for upstream obstacle outputs.
@@ -204,34 +311,94 @@ class OccupancyGridMap:
                             xmin = ymin = xmax = ymax = None
 
                     if xmin is not None:
-                        cx = (xmin + xmax) / 2
-                        cy = (ymin + ymax) / 2
-                        points = [
-                            (xmin, ymin),
-                            (xmax, ymin),
-                            (xmax, ymax),
-                            (xmin, ymax),
-                            (cx, cy)
-                        ]
+                        self._mark_bbox_occupied(xmin, ymin, xmax, ymax, padding_m=radius_m)
+                        continue
                 elif "x" in obstacle and "y" in obstacle:
                     points = [(obstacle["x"], obstacle["y"])]
 
             if points:
                 self.add_obstacle_points(points, radius_m=radius_m)
 
+    def add_aruco_marker(self, center_x, center_y, size_m, yaw_rad=0.0):
+        """
+        Adds/updates ArUco marker input.
+        Marker is modeled as a square in world coordinates.
+        """
+
+        if size_m <= 0:
+            raise ValueError("size_m must be > 0")
+
+        half = size_m / 2.0
+        cos_yaw = math.cos(yaw_rad)
+        sin_yaw = math.sin(yaw_rad)
+
+        local_corners = [
+            (-half, -half),
+            (half, -half),
+            (half, half),
+            (-half, half),
+        ]
+
+        world_corners = []
+        for x_local, y_local in local_corners:
+            x_world = center_x + (x_local * cos_yaw - y_local * sin_yaw)
+            y_world = center_y + (x_local * sin_yaw + y_local * cos_yaw)
+            world_corners.append((x_world, y_world))
+
+        self.aruco_marker = {
+            "center": (center_x, center_y),
+            "size_m": size_m,
+            "yaw_rad": yaw_rad,
+            "corners": world_corners,
+        }
+
+        self._clear_marker_layer()
+        self._mark_polygon_marker(world_corners)
+
+    def update_from_aruco_marker(self, marker):
+        """
+        ArUco marker input.
+        Expected keys: x, y, size_m, optional yaw_rad.
+        """
+
+        if not marker:
+            self.aruco_marker = None
+            self._clear_marker_layer()
+            return
+
+        center_x = marker.get("x")
+        center_y = marker.get("y")
+        size_m = marker.get("size_m")
+        yaw_rad = marker.get("yaw_rad", 0.0)
+
+        if center_x is None or center_y is None or size_m is None:
+            return
+
+        self.add_aruco_marker(
+            center_x=center_x,
+            center_y=center_y,
+            size_m=size_m,
+            yaw_rad=yaw_rad,
+        )
 
     def visualize_grid(self):
-        cmap = mcolors.ListedColormap(['gray', 'white', 'black'])
-        bounds = [-1.5, -0.5, 0.5, 1.5]
+        display_grid = [row[:] for row in self.grid]
+        for row in range(self.grid_height):
+            for col in range(self.grid_width):
+                if self.marker_layer[row][col]:
+                    display_grid[row][col] = self.MARKER
+
+        cmap = mcolors.ListedColormap(['gray', 'white', 'black', 'green'])
+        bounds = [-1.5, -0.5, 0.5, 1.5, 2.5]
         norm = mcolors.BoundaryNorm(bounds, cmap.N)
 
-        plt.imshow(self.grid, origin='lower', cmap=cmap, norm=norm)
+        plt.imshow(display_grid, origin='lower', cmap=cmap, norm=norm)
         plt.title("Occupancy Grid")
         plt.xlabel("X (columns)")
         plt.ylabel("Y (rows)")
         
-        cbar = plt.colorbar(ticks=[-1, 0, 1])
-        cbar.ax.set_yticklabels(['UNKNOWN', 'FREE', 'OCCUPIED'])
+        cbar = plt.colorbar(ticks=[-1, 0, 1, 2])
+        cbar.ax.set_yticklabels(['UNKNOWN', 'FREE', 'OCCUPIED', 'ARUCO'])
         
         plt.savefig("occupancy_grid.png")
         plt.close()
