@@ -1,6 +1,6 @@
 # UAV Occupancy Grid Mapping
 
-This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to build a 2D occupancy grid for obstacle detection and path planning. The primary input is world-frame obstacle data, with an optional image-based pipeline for testing.
+This project is a Python-based occupancy grid mapping system designed for autonomous drone navigation. The goal is to build a 2D occupancy grid for obstacle detection and path planning. The primary input is world-frame obstacle data.
 
 ## Features
 
@@ -13,14 +13,8 @@ Accepts obstacle inputs as points, polygons, or bounding boxes in world coordina
 **ArUco Marker Input**  
 Accepts one ArUco marker as a square detection with center, size, and optional yaw
 
-**Optional Image Processing**  
-HSV-based image pipeline for synthetic tests and legacy image inputs
-
 **World Coordinate Mapping**  
 Converts between real-world coordinates (meters) and grid indices
-
-**Test Field Generator**  
-Generates realistic test images with obstacles, grass texture, and varied colors for simulation
 
 **Visualization Tools**  
 Color-coded grid output for debugging and analysis  
@@ -29,20 +23,28 @@ Color-coded grid output for debugging and analysis
 ## Requirements
 
 ```bash
-pip install opencv-python numpy matplotlib
+pip install matplotlib
 ```
 
 ## Project Structure
 
 ```
 uav-mapping/
-├── occupancy_grid.py      # Global occupancy grid implementation
-├── image_to_grid.py       # Image processing pipeline (HSV detection)
-├── utils/
-│   └── test_field.py      # Test field generator
-├── main.py                # Example usage / demo
-├── images/                # Input images
-└── .gitignore
+├── package.xml                # ROS 2 package manifest
+├── setup.py                   # Package setup configuration
+├── setup.cfg                  # Installation configuration
+├── resource/
+│   └── uav_mapping            # Package marker file
+├── uav_mapping/
+│   ├── __init__.py
+│   ├── uav_mapping.py         # Main ROS 2 node
+│   └── occupancy_grid.py      # Occupancy grid implementation
+├── test/
+│   ├── test_copyright.py
+│   ├── test_flake8.py
+│   └── test_pep257.py
+├── README.md
+└── images/                    # Input images
 ```
 
 ## Usage
@@ -51,7 +53,6 @@ uav-mapping/
 
 ```python
 from occupancy_grid import OccupancyGridMap
-from image_to_grid import image_to_grid
 
 # Create an 8x8 meter grid with 0.2m resolution
 grid = OccupancyGridMap(
@@ -115,47 +116,9 @@ All obstacle coordinates are in meters in the map/world frame.
 
 - `{"polygon": [(x1, y1), (x2, y2), ...], "radius_m": r}`
     - Polygon vertices input format.
-    - In the current adapter, vertices are treated as obstacle points,
-        then expanded by `radius_m`.
+    - Vertices are treated as obstacle points, then expanded by `radius_m`.
 
-Note: `bbox` is fill-based. `polygon` is still treated as obstacle points.
-
-### Image-Based Pipeline (Optional)
-
-```python
-from occupancy_grid import OccupancyGridMap
-from image_to_grid import image_to_grid
-
-grid = OccupancyGridMap(
-    width_meters=20,
-    height_meters=20,
-    resolution=0.1,
-    inflation_meters=0.5
-)
-
-local_grid = image_to_grid("images/field.png", (200, 200))
-grid.update_from_local_grid(
-    local_grid=local_grid,
-    drone_x=0.0,
-    drone_y=0.0
-)
-
-grid.visualize_grid()  # Saves to occupancy_grid.png
-```
-
-### Generate Synthetic Test Fields
-
-Synthetic fields simulate a competition environment with obstacles like boxes and cones on grass.
-
-```python
-from utils.test_field import generate_field
-
-generate_field(
-    width_px=600,
-    height_px=600,
-    output_path="images/field.png"
-)
-```
+Note: `bbox` is fill-based. `polygon` is treated as obstacle points.
 
 ## How It Works
 
@@ -199,27 +162,19 @@ The mian approach is direct world-frame obstacle inputs via `update_from_obstacl
 **-1 (UNKNOWN)**  
 Area has not been observed yet
 
-**0 (FREE)**  
-Clear space, safe for navigation
+*orld-frame obstacle data is processed directly via `update_from_obstacles()` method.
 
-**1 (OCCUPIED)**  
-Obstacle detected (box, cone, etc.)
+### 2. Coordinate Transformation
 
-## Configuration
+- Converts world coordinates (meters) to grid indices
+- Keeps the global map consistent as observations update it
 
-Key parameters can be adjusted in `main.py`:
+### 3. Map Integration
 
-- `width_meters`, `height_meters` - Size of the world in meters
-- `resolution` - Cell size (smaller = more detail, more computation)
-- `inflation_meters` - Safety margin around obstacles
-- HSV green range in `image_to_grid.py` - Adjust for different lighting conditions
-- `update_from_obstacles()` - Adapter for upstream obstacle formats
+- Obstacles are marked on the grid based on world-frame inputs
+- Unknown cells are updated as new observations are made
+- Occupied cells are preserved once detected (safety priority)
+- Supports multiple observations over time
 
-## License
-
-Developed for SMU Drone Club
-
-## Author
-
-Antonio  
+### 4io  
 SMU Drone Club

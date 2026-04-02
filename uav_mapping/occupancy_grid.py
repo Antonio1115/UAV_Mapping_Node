@@ -155,7 +155,7 @@ class OccupancyGridMap:
                 if self._point_in_polygon(x, y, polygon):
                     self.marker_layer[row][col] = True
     
-    # This function is currently not being used, but will be kept in case I need it in the future
+    # This function is currently not being used, but will be kept in case needed in the future
     def is_line_of_sight_clear(self, start_row, start_col, end_row, end_col):
         """
         Takes starting a starting grid cell and an end grid cell to determine
@@ -402,5 +402,3 @@ class OccupancyGridMap:
         
         plt.savefig("occupancy_grid.png")
         plt.close()
-
-            

@@ -2,9 +2,15 @@
 venv/
 .venv/
 
-# Python cache files
-__pycache__/
+# ROS 2 / colcon
+build/
+install/
+log/
 
-# Generated image files
+# Python
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local artifacts
 occupancy_grid.png
-images/field.png
