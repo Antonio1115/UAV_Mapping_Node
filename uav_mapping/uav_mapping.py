@@ -2,54 +2,99 @@
 
 import rclpy
 from rclpy.node import Node
+from geometry_msgs.msg import PoseArray
+from nav_msgs.msg import OccupancyGrid
 from .occupancy_grid import OccupancyGridMap
 
 
 class UavMappingNode(Node):
     """
-    UAV Mapping Node for occupancy grid generation and management.
-    Displays obstacles on the grid and handles ArUco marker tracking.
+    UAV Mapping Node that subscribes to obstacle inputs and publishes /map.
+    Obstacle updates are received from /obstacles.
     """
 
     def __init__(self):
         super().__init__('uav_mapping_node')
-        self.get_logger().info('UAV Mapping Node initialized')
-
-    def run_mapping(self):
-        """
-        Execute the UAV mapping algorithm with test data.
-        """
-        self.get_logger().info('Starting UAV mapping...')
-
-        grid = OccupancyGridMap(
+        self.grid = OccupancyGridMap(
             width_meters=8,
             height_meters=8,
-            resolution=.2,
+            resolution=0.2,
             inflation_meters=0.0
         )
+        self.map_pub = self.create_publisher(OccupancyGrid, 'map', 10)
+        self.obstacles_sub = self.create_subscription(PoseArray, 'obstacles', self.obstacles_callback, 10)
+        self.publish_timer = self.create_timer(0.2, self.publish_map)
+        self._has_obstacles = False
 
-        obstacles = [
-            {"x": -1.0, "y": 1.2, "radius_m": 0.65},
-            {"bbox": [-2.8, -1.6, -1.6, -0.2], "radius_m": 0.0},
-            {"bbox": [1.0, 0.2, 2.2, 1.4], "radius_m": 0.0},
-            {"x": 2.4, "y": -1.8, "radius_m": 0.45}
-        ]
-        grid.update_from_obstacles(obstacles)
+        self.get_logger().info(
+            'UAV Mapping Node initialized: subscribing to /obstacles, publishing /map'
+        )
 
-        aruco_marker = {"x": -2.6, "y": 1.6, "size_m": 0.6, "yaw_rad": 0.0}
-        grid.update_from_aruco_marker(aruco_marker)
+    def obstacles_callback(self, msg):
+        """
+        Receives obstacle points from /obstacles as PoseArray.
+        Mapping convention: x/y from pose.position, optional radius in pose.position.z.
+        """
+        obstacles = []
+        for pose in msg.poses:
+            radius_m = pose.position.z if pose.position.z > 0.0 else 0.0
+            obstacles.append(
+                {
+                    'x': pose.position.x,
+                    'y': pose.position.y,
+                    'radius_m': radius_m,
+                }
+            )
 
-        grid.visualize_grid()
-        self.get_logger().info('Mapping complete. Grid visualization saved.')
+        if obstacles:
+            self.grid.update_from_obstacles(obstacles)
+            self._has_obstacles = True
+
+    def publish_map(self):
+        """Publishes the current occupancy grid on /map."""
+
+        msg = OccupancyGrid()
+        msg.header.stamp = self.get_clock().now().to_msg()
+
+        msg.header.frame_id = 'map'
+
+        msg.info.resolution = float(self.grid.resolution)
+        msg.info.width = int(self.grid.grid_width)
+        msg.info.height = int(self.grid.grid_height)
+        msg.info.origin.position.x = -self.grid.width_meters / 2.0
+        msg.info.origin.position.y = -self.grid.height_meters / 2.0
+        msg.info.origin.position.z = 0.0
+        msg.info.origin.orientation.w = 1.0
+
+        data = []
+        for row in self.grid.grid:
+            for cell in row:
+                if cell == OccupancyGridMap.UNKNOWN:
+                    data.append(-1)
+                elif cell == OccupancyGridMap.OCCUPIED:
+                    data.append(100)
+                else:
+                    data.append(0)
+
+        msg.data = data
+        self.map_pub.publish(msg)
+
+        if not self._has_obstacles:
+            self.get_logger().debug('Published /map with no obstacle updates yet')
 
 
 def main(args=None):
     rclpy.init(args=args)
 
     node = UavMappingNode()
-    node.run_mapping()
 
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
